@@ -20,6 +20,12 @@ BEGIN
 	PROCESS(fsync)													--resets counter - new vector begins
 	BEGIN
 		counter <= "00000";
+		
+		IF (fsync = '1') THEN
+			leftMemo = "000000000000000000";
+		ELSE
+			rightMemo = "000000000000000000";
+		END IF;
 	END PROCESS;
 	
 	PROCESS(sclk)
@@ -27,9 +33,9 @@ BEGIN
 		IF (sclk = '0') THEN
 			IF (counter /= 18) THEN
 				IF (fsync = '1') THEN
-					leftMemo <= sdata & leftMemo(17 DOWNTO 1);		--shifts first 17 bits to the left and places current sdata value in the front
+					leftMemo <= leftMemo(16 DOWNTO 0) & sdata;		--shifts first 17 bits to the left and places current sdata value in the front
 				ELSE
-					rightMemo <= sdata & rightMemo(17 DOWNTO 1);	--shifts first 17 bits to the left and places current sdata value in the front
+					rightMemo <= rightMemo(16 DOWNTO 0) & sdata;	--shifts first 17 bits to the left and places current sdata value in the front
 				END IF;
 				
 				counter <= counter + 1;
@@ -53,21 +59,27 @@ BEGIN
 	
 	PROCESS(fsync)													--resets counter - new vector begins
 	BEGIN
-		counter <= 0;
+		counter <= 18;
+		
+		IF (fsync = '1') THEN
+			leftMemo = "000000000000000000";
+		ELSE
+			rightMemo = "000000000000000000";
+		END IF;
 	END PROCESS;
 	--compiler also thinks that a race is possible - if through triggering both processes at the same time counter <= 0 and counter <= counter + 1 happen simultaneously
 	--although technically possible, our input doesn't allow that in practice
 	PROCESS(sclk)
 	BEGIN
 		IF (sclk = '0') THEN
-			IF (counter /= 18) THEN
+			IF (counter /= 0) THEN
 				IF (fsync = '1') THEN
-					leftMemo(counter) <= sdata;						--places sdata value directly onto the current bit (#counter)
+					leftMemo(counter - 1) <= sdata;					--places sdata value directly onto the current bit (#counter)
 				ELSE												--because of usage here counter HAS to be NATURAL
-					rightMemo(counter) <= sdata;					--places sdata value directly onto the current bit (#counter)
+					rightMemo(counter - 1) <= sdata;				--places sdata value directly onto the current bit (#counter)
 				END IF;
 				
-				counter <= counter + 1;
+				counter <= counter - 1;
 			ELSE
 				IF (fsync = '0') THEN								--upon filling both memo vectors - output assigned
 					leftS <= leftMemo;
