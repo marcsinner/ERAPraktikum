@@ -6,29 +6,29 @@ coshInv:
 ;placeholder for memory allocation, address in ESI
 ;X in EAX???
 
-PUSH EAX;
-FLD DWORD [ESP];
-FLD1;
-FCOM;
-FNSTSW;
+PUSH EAX
+FLD DWORD [ESP]
+FLD1
+FCOM
+FNSTSW EAX
 AND AX, 1792;	1792 = 00000111_00000000
-JZ coshInvException;
-FST DWORD [ESP];
-PUSH EAX;
-FST DWORD [ESP];
+JZ coshInvException
+FST DWORD [ESP]
+PUSH EAX
+FST DWORD [ESP]
 
 coshInvWhile:
 
-FLD1;			starting value in f
-MOV ECX, 2;		starting grade in f
-CALL f;
-FSUB ST(0), ST(2);
-PUSH EAX;
-FSTP DWORD [ESP];
+FLD1			;starting value in f
+MOV ECX, 2		;starting grade in f
+CALL f
+FSUB ST0, ST2
+PUSH EAX
+FSTP DWORD [ESP]
 
-FLD ST(0);		starting value un f'
-MOV ECX, 3;		starting grade in f'
-CALL f;
+FLD ST0		;starting value un f'
+MOV ECX, 3		;starting grade in f'
+CALL f
 
 FLD DWORD [ESP];
 POP EAX;
@@ -49,14 +49,17 @@ JMP coshInvWhile;
 
 coshInvExit:
 FXCH;
-FSTP ST(0);
+FSTP ST0;
 RET;
 
 coshInvException:
 POP EAX;
-FSTP ST(0);
-FSTP ST(0);
-FILD 2147483647;	= 01111111_11111111_11111111_11111111 = NaN
+FSTP ST0;
+FSTP ST0;
+PUSH EAX
+MOV EAX, 2147483647
+FILD EAX;	= 01111111_11111111_11111111_11111111 = NaN
+POP EAX
 RET;
 
 
@@ -67,7 +70,7 @@ FLD1;
 CALL taylor;
 FST DWORD [ESI];
 MOV EAX, [ESI];
-FLD ST(1);
+FLD ST1;
 FSTP DWORD [ESI];
 MOV EBX, [ESI];
 SHR EAX, 23;
@@ -85,7 +88,7 @@ RET;
 
 
 taylor:
-FLD ST(2);
+FLD ST2;
 FILD DWORD ECX;
 FDIVP;
 FMULP;
