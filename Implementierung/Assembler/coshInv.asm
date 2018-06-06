@@ -5,9 +5,16 @@ GLOBAL coshInv;
 coshInv:
 ;placeholder for memory allocation, address in ESI
 ;X in EAX???
+
 PUSH EAX;
 FLD DWORD [ESP];
 FLD1;
+FCOM;
+FNSTSW;
+AND AX, 1792;	1792 = 00000111_00000000
+JZ coshInvException;
+FST DWORD [ESP];
+PUSH EAX;
 FST DWORD [ESP];
 
 coshInvWhile:
@@ -29,17 +36,27 @@ FXCH;
 FDIVP;
 FSUBP;
 FST DWORD [ESI];
-MOV ECX, [ESI];
-POP EDX;
-CMP ECX, EDX;
+MOV EAX, [ESI];
+POP EBX;
+CMP EAX, EBX;
 JE coshInvExit;
-PUSH ECX;
+POP ECX;
+CMP EAX, ECX;
+JE coshInvExit;
+PUSH EBX;
+PUSH EAX;
 JMP coshInvWhile;
 
 coshInvExit:
-FSTP DWORD [ESI];
-MOV EAX, [ESI];
+FXCH;
 FSTP ST(0);
+RET;
+
+coshInvException:
+POP EAX;
+FSTP ST(0);
+FSTP ST(0);
+FILD 2147483647;	= 01111111_11111111_11111111_11111111 = NaN
 RET;
 
 
