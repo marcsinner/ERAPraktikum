@@ -22,9 +22,9 @@ BEGIN
 		counter <= "00000";
 		
 		IF (fsync = '1') THEN
-			leftMemo = "000000000000000000";
+			leftMemo <= "000000000000000000";
 		ELSE
-			rightMemo = "000000000000000000";
+			rightMemo <= "000000000000000000";
 		END IF;
 	END PROCESS;
 	
@@ -51,7 +51,7 @@ END shift_memo;
 
 ARCHITECTURE slot_memo OF sp_converter IS							--architecture with slot-based memorizing
 	SIGNAL counter : NATURAL;										--counts from 0 up to 18 (18 means current vector is finished)
-	--also, the compiler complained about counter being UNSIGNED instead of NATURAL, which can't be modified in terms of length ¯\_(ツ)_/¯
+	--also, the compiler complained about counter being UNSIGNED instead of NATURAL, which can't be modified in terms of length 
 	SIGNAL leftMemo : SIGNED(17 DOWNTO 0);							--two output memory vectors
 	SIGNAL rightMemo : SIGNED(17 DOWNTO 0);
 BEGIN
@@ -62,9 +62,9 @@ BEGIN
 		counter <= 18;
 		
 		IF (fsync = '1') THEN
-			leftMemo = "000000000000000000";
+			leftMemo <= "000000000000000000";
 		ELSE
-			rightMemo = "000000000000000000";
+			rightMemo <= "000000000000000000";
 		END IF;
 	END PROCESS;
 	--compiler also thinks that a race is possible - if through triggering both processes at the same time counter <= 0 and counter <= counter + 1 happen simultaneously
