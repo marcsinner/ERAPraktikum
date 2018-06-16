@@ -1,8 +1,13 @@
 #include <stdio.h>
 
-extern int coshInv() asm("coshInv");
+extern float coshInv(float x) asm("coshInv");
 
 int main()
 {
-	printf("%d\n", coshInv());
+	float x;
+	printf("%f\n", coshInv(a));
+	
+	while (true) {
+		
+	}
 }

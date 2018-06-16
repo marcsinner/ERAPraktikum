@@ -1,103 +1,158 @@
-BITS 32;
+BITS 32
 
 GLOBAL coshInv;
 
 coshInv:
-;placeholder for memory allocation, address in ESI
-;X in EAX???
+;this function returns the float representation of cosh^-1(x)
+;put the float representation of x on top of the CPU-stack just before calling this function
+;the output is left on top of the FPU-stack (st0)
+;for x >= 1.0f, this returns the most precise float representation of cosh^-1(x) possible
+;for x < 1.0f, this returns NaN
 
+MOV EAX, [ESP + 4]	;location of the call argument (x)
+FLD DWORD [ESP + 4]
+
+SHR EAX, 23			;logical right shift by 23 moves the exponent part (bits #30 - #23) of float to AL
+CMP EAX, 255		;float bit #31 (sign) is now #8, EAX > 255 <-> x < 0
+JG coshInvInputException
+AND EAX, 000000ffh	;removes the sign bit, only exponent part left
+CMP EAX, 127		;if EAX < 127 => exponent is negative, therefore EAX < 127 <-> 0 <= x < 1
+JL coshInvInputException
+;in total: if x < 1 return NaN
+
+initialY:
+;initial y value is approximated using a linear equation y = 0.7 * binExp(x) + 0.6 (close enough)
+;this is done to have the initial value approx. close to the solution to avoid overflow
+;the equation has been chosen to get y = 89.5 from x = Float.MAXVALUE input
+;y = 89.5 is just below the highest y that never overflows a float during the taylor-element computation
+
+SUB EAX, 127		;exponent = floatExponent - 127 (IEEE74)
 PUSH EAX
-FLD DWORD [ESP]
-FLD1
-;FCOM
-;FNSTSW AX
-;AND AX, 1792;	1792 = 00000111_00000000
-;JZ coshInvException
-FST DWORD [ESP]
+FILD DWORD [ESP]	;store exponent onto fstack
+MOV DWORD [ESP], 3F333333h
+FLD DWORD [ESP]		;hex value of 0.7f
+FMULP
+MOV DWORD [ESP], 3F19999Ah
+FLD DWORD [ESP]		;hex value of 0.6f
+FSUBP
+
+FST DWORD [ESP]		;store 2 copies of y onto CPU stack for exit condition
 PUSH EAX
 FST DWORD [ESP]
 
 coshInvWhile:
+;a while-loop, performing Newton's method to solve cosh(y) - x = 0
+;the solution of this equation is also the result of y = cosh^-1(x)
+;x is runtime-constant, solve y
+;Newton's method: approximate a solution of zero-point-equation, using a recursive formula: y(n+1) = y(n) - f(y(n))/f'(y(n))
+;y(0) freely choosabe, must be between the same extremes as the solution
+;cosh only has one extreme at y = 0, with the restriction of x >= 1 Newton's method will always deliver the correct and positive outcome
+;the loop ends, when (y(n) == y(n - 1) OR y(n) == y(n - 2)) == true
+;this condition means that maximum precision is achieved and no infinite loops can occur
 
-FLD1			;starting value in f
-MOV ECX, 2		;starting grade in f
-CALL f
-FSUB ST0, ST2
+;st0 = y, st1 = x
+;CPU stack is 	lastLastY
+;				lastY
+
+FLD1			;starting value in f (1.0f)
+MOV EAX, 2		;starting grade in f (2)
+CALL f			;f called with (1, 2) ==> f(y)
+FSUB ST0, ST2	;cosh(y)-x
 PUSH EAX
-FSTP DWORD [ESP]
+FSTP DWORD [ESP];store f(y) onto CPU-stack
 
-FLD ST0		;starting value un f'
-MOV ECX, 3		;starting grade in f'
-CALL f
+FLD ST0			;starting value un f' (y)
+MOV EAX, 3		;starting grade in f' (3)
+CALL f			;f called with (y, 3) ==> f'(y)
 
-FLD DWORD [ESP];
-POP EAX;
-FXCH;
-FDIVP;
-FSUBP;
-FST DWORD [ESI];
-MOV EAX, [ESI];
-POP EBX;
-CMP EAX, EBX;
-JE coshInvExit;
-POP ECX;
-CMP EAX, ECX;
-JE coshInvExit;
-PUSH EBX;
-PUSH EAX;
-JMP coshInvWhile;
+FLD DWORD [ESP]	;load f(y) back onto FPU-stack
+FXCH
+FDIVP			;f(y) / f'(y)
+FSUBP			;newY = y - f(y) / f'(y)
+FST DWORD [ESP]	;replace f(y) with newY at CPU-stack top
+POP EAX			;newY in EAX
+POP EBX			;lastY in EBX
+POP ECX			;lastLastY in ECX
+CMP EAX, EBX	;if newY == lastY ==> maximum precision reached, end program
+JE coshInvExit
+CMP EAX, ECX	;same here. comparison to 2 last values to avoid endless loops of +-0.0000001
+JE coshInvExit
+PUSH EBX		;store last y ==> will be second to last next iteration
+PUSH EAX		;store new y ==> will be last next iteration
+JMP coshInvWhile
 
 coshInvExit:
-FXCH;
-FSTP ST0;
-RET;
+;st(0) = final y, st(1) = x
+FXCH
+FSTP ST0		;remove x from under y
+RET				;end of the function
 
-coshInvException:
-POP EAX;
-FSTP ST0;
-FSTP ST0;
-PUSH DWORD [ESI]
-MOV DWORD [ESI], 2147483647
-FILD DWORD [ESI];	= 01111111_11111111_11111111_11111111 = NaN
-POP DWORD [ESI]
-RET;
-
-
+coshInvInputException:
+;occurs when input x < 1.0f
+;returns a NaN value
+FSTP ST0		;delete input
+PUSH DWORD 0x7FFFFFFF	;hex value of NaN
+FLD DWORD [ESP]
+POP EAX
+RET
 
 f:
-;Y at st(1), 1 at st(0), 2 in ECX
-FLD1;
-CALL taylor;
-FST DWORD [ESI];
-MOV EAX, [ESI];
-FLD ST1;
-FSTP DWORD [ESI];
-MOV EBX, [ESI];
-SHR EAX, 23;
-SHR EBX, 23;
-SUB BL, AL;
-CMP BL, 23;
-JGE fEnd;
-FADD;
-ADD ECX, 2;
-JMP f;
+;depending on the input (see below) computes either f(y) = cosh(y) - x OR f'(y) = sinh(x)
+;																	^this -x happens externally in the calling function coshInvWhile
+;a Taylor series is used to develop both functions
+;cosh(y) = 1 + y^2/2! + y^4/4! + y^6/6! + ... + y^(2n)/(2n)! + ...
+;sinh(y) = y + y^3/3! + y^5/5! + y^7/7! + ... + y^(2n + 1)/(2n + 1)! + ...
+;a function can be chosen by specifying the inputs:
+
+;Y at st1
+;for f(y): st0 = 1, EAX = 2
+;for f'(y): st0 = y, EAX = 3
+
+MOV EBX, EAX		;copy grade to EBX for taylor
+CALL taylor
+PUSH EBX
+FST DWORD [ESP]		;copy currentTaylor to EBX
+MOV EBX, [ESP]
+FLD ST1				;copy currentOutput onto fstack
+FSTP DWORD [ESP]	;move currentOutput to ECX
+POP ECX
+SHR EBX, 23			;right logic shift 23 ==> lowest byte contains exponent
+SHR ECX, 23
+SUB CL, BL
+CMP CL, 23			;when diff > 23 ==> further computing has no point
+JGE fEnd
+FADD				;currentOutput += currentTaylor
+ADD EAX, 2			;go through grades at step == 2 until max precision
+JMP f
 
 fEnd:
-RET;
+FADD				;effectively destroy currentTaylor
+RET
 
 
 
 taylor:
-FLD ST2;
-PUSH DWORD [ESI]
-MOV DWORD [ESI],ECX
-FILD DWORD [ESI];
-POP DWORD [ESI]
-FDIVP;
-FMULP;
-DEC ECX;
-JZ taylorEnd;
-JMP taylor;
+;computes an element of a Taylot series y^n/n!
+;to avoid float overflow, the value is gradually scaled up using:
+;y^n/n! = y/n * y/(n - 1) * y/(n - 2) * ... * y/2 * y/1
+;this ensures overflow is never possible, as long as the y is kept lower than 91 (which is achieved through the input approximation)
+
+;st0 = current f value, st1 = y
+;element grade in EBX
+
+FLD1				;initial output value (to multiply y/EBX with)
+PUSH EBX			;"reserve" ESP for copying
+
+taylorWhile:
+FLD ST2				;copy y onto fstack
+MOV [ESP], EBX
+FILD DWORD [ESP]	;load current grade onto fstack
+FDIVP				;y / currentGrade
+FMULP				;output * (y / currentGrade)
+DEC EBX				;go through every grade from max downto 1
+JZ taylorEnd		;end at currentGrade == 0
+JMP taylorWhile		
 
 taylorEnd:
-RET;
+POP EBX				;clear stack
+RET

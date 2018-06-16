@@ -3,7 +3,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
-extern int coshInv() asm("coshInv");
+extern float coshInv(float x) asm("coshInv");
 
 int debug=0;
 
@@ -25,7 +25,7 @@ int main(){
 
 int singleOperations(int amount){
 
-	for(float i = 1; i<amount; i++){
+	for(float i = 1.0f; i<amount; i++){
 
 		//library Operation
 
@@ -70,7 +70,7 @@ int setOfOperations(int amount){
 		struct timeval tval_before, tval_after, tval_result;
 		gettimeofday(&tval_before, NULL);
 
-		for(float i = 1; i<amount; i++){
+		for(float i = 1.0f; i<amount; i++){
 			float c1 = acosh(i);
 		}
 
@@ -82,7 +82,7 @@ int setOfOperations(int amount){
 		struct timeval tval_before2, tval_after2, tval_result2;
 		gettimeofday(&tval_before2, NULL);
 
-		for(float i = 1; i<amount; i++){
+		for(float i = 1.0f; i<amount; i++){
 			float c2 = coshInv(i);
 		}
 
