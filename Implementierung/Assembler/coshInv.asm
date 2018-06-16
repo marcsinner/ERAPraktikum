@@ -20,21 +20,24 @@ CMP EAX, 127		;if EAX < 127 => exponent is negative, therefore EAX < 127 <-> 0 <
 JL coshInvInputException
 ;in total: if x < 1 return NaN
 
+PUSH 89
+FILD DWORD [ESP]
+
 initialY:
 ;initial y value is approximated using a linear equation y = 0.7 * binExp(x) + 0.6 (close enough)
 ;this is done to have the initial value approx. close to the solution to avoid overflow
 ;the equation has been chosen to get y = 89.5 from x = Float.MAXVALUE input
 ;y = 89.5 is just below the highest y that never overflows a float during the taylor-element computation
 
-SUB EAX, 127		;exponent = floatExponent - 127 (IEEE74)
-PUSH EAX
-FILD DWORD [ESP]	;store exponent onto fstack
-MOV DWORD [ESP], 3F333333h
-FLD DWORD [ESP]		;hex value of 0.7f
-FMULP
-MOV DWORD [ESP], 3F19999Ah
-FLD DWORD [ESP]		;hex value of 0.6f
-FSUBP
+;SUB EAX, 127		;exponent = floatExponent - 127 (IEEE74)
+;PUSH EAX
+;FILD DWORD [ESP]	;store exponent onto fstack
+;MOV DWORD [ESP], 3F333333h
+;FLD DWORD [ESP]		;hex value of 0.7f
+;FMULP
+;MOV DWORD [ESP], 3F19999Ah
+;FLD DWORD [ESP]		;hex value of 0.6f
+;FSUBP
 
 FST DWORD [ESP]		;store 2 copies of y onto CPU stack for exit condition
 PUSH EAX
@@ -91,7 +94,7 @@ coshInvInputException:
 ;occurs when input x < 1.0f
 ;returns a NaN value
 FSTP ST0		;delete input
-PUSH DWORD 0x7FFFFFFF	;hex value of NaN
+PUSH DWORD 7FFFFFFFh	;hex value of NaN
 FLD DWORD [ESP]
 POP EAX
 RET
@@ -118,8 +121,10 @@ FSTP DWORD [ESP]	;move currentOutput to ECX
 POP ECX
 SHR EBX, 23			;right logic shift 23 ==> lowest byte contains exponent
 SHR ECX, 23
-SUB CL, BL
-CMP CL, 23			;when diff > 23 ==> further computing has no point
+AND EBX, 000000ffh
+AND ECX, 000000ffh
+SUB ECX, EBX
+CMP ECX, 23			;when diff > 23 ==> further computing has no point
 JGE fEnd
 FADD				;currentOutput += currentTaylor
 ADD EAX, 2			;go through grades at step == 2 until max precision
