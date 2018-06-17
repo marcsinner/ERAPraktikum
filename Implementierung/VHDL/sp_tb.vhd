@@ -8,9 +8,9 @@ end sp_tb;
 architecture test of sp_tb is
 	component sp_converter
 		PORT (
-			fsync, sclk, sdata : IN STD_LOGIC;							--fsync: 0 = Right, 1 = Left; 1 fsync cycle = 64 sclk cycles; sclk at 44.1 kHz
-			flag : OUT STD_LOGIC;										--rising edge on new signal pair output
-			leftS, rightS : OUT SIGNED(17 DOWNTO 0)						--18bit signed parallel outputs
+			fsync, sclk, sdata : in std_logic;							--fsync: 0 = Right, 1 = Left; 1 fsync cycle = 64 sclk cycles; sclk at 44.1 kHz
+			flag : out std_logic;										--rising edge on new signal pair output
+			leftS, rightS : out signed(17 DOWNTO 0)					--18bit signed parallel outputs
 		);
 	end component;
 	
@@ -36,13 +36,44 @@ architecture test of sp_tb is
 	signal flag : std_logic;
 	signal leftS : signed(17 downto 0);
 	signal rightS : signed(17 downto 0);
+	signal count : integer := 0;															--counter for sdataArray
+	constant sdataArray : unsigned(35 downto 0) := "101010101010101010010101010101010101";  --input for sdat: changing 0 and 1 for better view of succesfull output - left side starting with 1, right side starting with 0
+	signal stopcounter : integer := 0;														--counter for stopping program after a time - otherwise the generation of the .vcd would never stop (we let the program calculate 100 cycles)
 	
 begin
-	name: sp_converter port map(fsync => fsync, sclk => sclk, sdata => sdata, flag => flag, leftS => leftS, rightS => rightS);
+	mapper: sp_converter
+	port map(																				--mapping in- and output of sp_converter to this testbench 
+		fsync => fsync, 
+		sclk => sclk, 
+		sdata => sdata, 
+		flag => flag, 
+		leftS => leftS, 
+		rightS => rightS
+	);
 
-	sdata <= '1';
-	clk_gen(fsync, 4.41E4);
-	clk_gen(sclk, 2.8224E6);
+	sdata <= sdataArray(count);																--Concurrent statements: reading from sdataArray at position count
+	clk_gen(fsync, 4.41E4);																	--generating clock for fsync with frequency of 44.1 kHz
+	clk_gen(sclk, 2.8224E6);																--generating clock for sclk with frequency of 44.1kHz * 64 = 2822.4 kHz
 	
+	process(sclk, fsync)
+	begin
 	
+		if(rising_edge(fsync)) then															--reset counter after each cycle fsync cycle
+			count <= 0;																		
+		end if;
+		if(rising_edge(sclk) and count < 17 and fsync /= '0') then							--when fsync is 1, take with every rising_edge of sclk the next of in total 18 (0-17) sdata bits
+			count <= count + 1;															
+			stopcounter <= stopcounter + 1;
+		elsif(rising_edge(sclk) and count < 35 and fsync /= '1') then						--when fsync is 0, take with every rising_edge of sclk the next of in total 18 (18-35) sdata bits
+			count <= count + 1;
+			stopcounter <= stopcounter + 1;
+		end if;
+		if(stopcounter >= 35000) then														--100 cycles * 35 counts per cycle = 35000
+			assert false
+				report "simulation ended - error report is just an exit out of simulation"
+				severity failure;
+		end if;
+		
+	
+	end process;
 end test;
